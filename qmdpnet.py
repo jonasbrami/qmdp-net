@@ -1,5 +1,10 @@
 from tensorpack import graph_builder
-import tensorflow as tf
+from tensorflow import __version__ as tf_version
+if tf_version[0] == '2':
+    import tensorflow.compat.v1 as tf
+    tf.disable_v2_behavior()
+else:
+    import tensorflow as tf
 import numpy as np
 
 

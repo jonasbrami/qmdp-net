@@ -8,8 +8,12 @@ from __future__ import print_function
 
 import os, sys, time
 import numpy as np
-import tensorflow as tf
-
+from tensorflow import __version__ as tf_version
+if tf_version[0] == '2':
+    import tensorflow.compat.v1 as tf
+    tf.disable_v2_behavior()
+else:
+    import tensorflow as tf
 import datafeed
 from qmdpnet import QMDPNet, QMDPNetPolicy
 from arguments import parse_args
