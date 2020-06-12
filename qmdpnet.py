@@ -220,7 +220,7 @@ class QMDPNetPolicy():
         logits, _ = self.sess.run([self.network.logits, self.network.update_belief_op], feed_dict=feed_dict)
         act = np.argmax(logits.flatten())
 
-        return act
+        return act,self.belief_img
 
 
 class PlannerNet():

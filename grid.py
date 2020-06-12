@@ -64,6 +64,13 @@ class GridBase(object):
         goal_img = self.process_goals(goal_states)
         b0_img = self.process_beliefs(b0)
         policy.reset(env_img, goal_img, b0_img)
+        
+        #added for plotting
+        beliefs = []
+        states = []
+        actions = []
+        observations = []
+
 
         while True:
             # finish if state is terminal, i.e. we reached a goal state
@@ -79,8 +86,10 @@ class GridBase(object):
             # choose next action
             if step_i == 0:
                 act = first_action
+                b = b0_img
             else:
-                act = policy.eval(act, self.obs_lin_to_bin(obs))
+                act,b = policy.eval(act, self.obs_lin_to_bin(obs))
+
 
             # simulate action
             state, r = qmdp.transition(state, act)
@@ -93,11 +102,16 @@ class GridBase(object):
             if np.isclose(r, params.R_obst):
                 collisions += 1
 
-            step_i += 1
+            #for graphs
+            beliefs.append(b)
+            states.append(state)
+            actions.append(act)
+            observations.append(obs)
 
+            step_i += 1
         traj_len = step_i
 
-        return (not failed), traj_len, collisions, reward_sum
+        return (not failed), traj_len, collisions, reward_sum, beliefs, states, actions, observations
 
     def generate_trajectories(self, db, num_traj):
         params = self.params
@@ -110,6 +124,7 @@ class GridBase(object):
 
             qmdp.solve()
 
+            
             state = start_state
             b = b0.copy()  # linear belief
             reward_sum = 0.0  # accumulated reward
@@ -142,6 +157,7 @@ class GridBase(object):
                 if step_i == 0:
                     # dummy first action
                     act = params.stayaction
+                    db.root.qmdpBeliefs.append(b.reshape(1,-1))
                 else:
                     act = qmdp.qmdp_action(b)
 
@@ -160,6 +176,7 @@ class GridBase(object):
                     collisions += 1
 
                 step_i += 1
+                #import pdb;pdb.set_trace()
 
             # add to database
             if not failed:
@@ -175,11 +192,14 @@ class GridBase(object):
             sample = np.array(
                 [len(db.root.envs), goal_states[0], len(db.root.steps), traj_len, collisions, failed], 'i')
 
+            
             db.root.samples.append(sample[None])
             db.root.bs.append(np.array(beliefs[:1]))
             db.root.expRs.append([reward_sum])
             db.root.steps.append(step)
-
+            for belief in beliefs[1:]:
+                db.root.qmdpBeliefs.append(belief.todense())
+            #import pdb;pdb.set_trace()
         # add environment only after adding all trajectories
         db.root.envs.append(self.grid[None])
 
@@ -191,11 +211,13 @@ class GridBase(object):
         :return:
         """
         while True:
+
             if generate_grid:
                 self.grid = self.random_grid(self.params.grid_n, self.params.grid_m, self.params.Pobst)
                 self.gen_pomdp()  # generates pomdp model, self.T, self.Z, self.R
 
             while True:
+
                 # sample initial belief, start, goal
                 b0, start_state, goal_state = self.gen_start_and_goal()
                 if b0 is None:
@@ -206,6 +228,7 @@ class GridBase(object):
 
                 # reject if start == goal
                 if start_state in goal_states:
+
                     continue
 
                 # create qmdp
@@ -239,7 +262,7 @@ class GridBase(object):
             for j in range(self.M):
                 state_coord = np.array([i, j])
                 state = self.state_bin_to_lin(state_coord)
-
+                #import pdb;pdb.set_trace()
                 # first build observation
                 obs = np.zeros([self.obs_len])  # 1 or 0 in four directions
                 for direction in range(self.obs_len):
@@ -450,6 +473,7 @@ class GridBase(object):
         db.create_earray(db.root, 'samples', tables.IntAtom(),
                          shape=(0, 6),  # env_id, goal_state, step_id, traj_length, collisions, failed
                          expectedrows=total_traj_count)
+        db.create_earray(db.root, 'qmdpBeliefs', tables.FloatAtom(), shape=(0, num_state,),expectedrows=total_traj_count*10)
         return db
 
     def process_goals(self, goal_state):
@@ -513,7 +537,7 @@ def generate_grid_data(path, N=30, M=30, num_env=10000, traj_per_env=5, Pmove_su
 
     # save params
     if not os.path.isdir(path): os.mkdir(path)
-    pickle.dump(dict(params), open(path + "/params.pickle", 'w'), -1)
+    pickle.dump(dict(params), open(path + "/params.pickle", 'wb'), -1)
 
     # randomize seeds, set to previous value to determinize random numbers
     np.random.seed()
@@ -563,7 +587,7 @@ def main():
     args = parser.parse_args()
 
     if os.path.isdir(args.path):
-        answer = raw_input("%s exists. Do you want to remove it(y/n)?" % args.path)
+        answer = input("%s exists. Do you want to remove it(y/n)?" % args.path)
         if answer != 'y':
             return
         shutil.rmtree(args.path)

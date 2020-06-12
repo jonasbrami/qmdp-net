@@ -174,7 +174,7 @@ def run_eval(params, modelfile):
         saver = tf.train.Saver(var_list=tf.trainable_variables())
 
         # Create a TF session
-        os.environ["CUDA_VISIBLE_DEVICES"] = "" # use CPU
+        #os.environ["CUDA_VISIBLE_DEVICES"] = "" # use CPU
         sess = tf.Session(config=tf.ConfigProto())
 
         # load model from file
@@ -189,7 +189,7 @@ def run_eval(params, modelfile):
     df.reset_state()
     time.sleep(0.2)
     eval_iterator = df.get_data()
-
+    #import pdb;pdb.set_trace()
     print ("Evaluating %d samples, repeating simulation %d time(s)"%(params.eval_samples, params.eval_repeats))
     expert_results = []
     network_results = []

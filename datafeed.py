@@ -3,7 +3,7 @@ from tensorpack import dataflow
 
 from database import Database
 from grid import GridBase
-
+import matplotlib.pyplot as plt
 try:
     import ipdb as pdb
 except Exception:
@@ -141,6 +141,7 @@ class Datafeed():
         :param repeats: repeat evaluation multiple times when mode == eval
         :return: dataflow with evaluation results
         """
+        #import pdb;pdb.set_trace()
         df = dataflow.DataFromList(self.filtered_samples, shuffle=False)
         df = dataflow.RepeatedData(df, 1000000)
 
@@ -287,12 +288,28 @@ class EvalDataFeed(dataflow.ProxyDataFlow):
         results[0] = np.array([success, traj_len, collided, reward_sum], 'f')
 
         for eval_i in range(self.repeats):
-            success, traj_len, collisions, reward_sum = self.domain.simulate_policy(
+            success, traj_len, collisions, reward_sum, beliefs, states, actions, observations = self.domain.simulate_policy(
                 self.policy, grid=env, b0=b0, start_state=state, goal_states=goal_states, first_action=act_last)
             success = (1 if success else 0)
             collided = np.min([collisions, 1])
 
             results[eval_i+1] = np.array([success, traj_len, collided, reward_sum], 'f')
+
+        def obsToArray(linObs):
+            res = np.zeros(shape =(3,3), dtype = float)
+            binRes = np.unravel_index((linObs), [2,2,2,2])
+            res[2,1] = binRes[0]
+            res[1,2] = binRes[1]
+            res[1,0] = binRes[2]
+            res[0,1] = binRes[3]
+            return res
+            
+        #for state,belief,observation,action,iPath in zip(states,beliefs,observations,actions,range(len(actions))):
+        #        plt.imshow(obsToArray(observation), cmap='hot', interpolation='nearest')
+        #        plt.savefig(str(env_i[0])+'obs currPathLength = '+str(iPath)) 
+        #        import pdb;pdb.set_trace()
+
+
 
         return results  # success, traj_len, collided, reward_sum
 
