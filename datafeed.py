@@ -288,7 +288,7 @@ class EvalDataFeed(dataflow.ProxyDataFlow):
         results[0] = np.array([success, traj_len, collided, reward_sum], 'f')
 
         for eval_i in range(self.repeats):
-            success, traj_len, collisions, reward_sum, beliefs, states, actions, observations = self.domain.simulate_policy(
+            success, traj_len, collisions, reward_sum, beliefs, states, actions, observations,goal_img,actLogits = self.domain.simulate_policy(
                 self.policy, grid=env, b0=b0, start_state=state, goal_states=goal_states, first_action=act_last)
             success = (1 if success else 0)
             collided = np.min([collisions, 1])
@@ -298,19 +298,75 @@ class EvalDataFeed(dataflow.ProxyDataFlow):
         def obsToArray(linObs):
             res = np.zeros(shape =(3,3), dtype = float)
             binRes = np.unravel_index((linObs), [2,2,2,2])
-            res[2,1] = binRes[0]
-            res[1,2] = binRes[1]
+            res[2,1] = binRes[1]
+            res[1,2] = binRes[0]
             res[1,0] = binRes[2]
             res[0,1] = binRes[3]
             return res
+        moves = [[0, 1], [1, 0], [0, -1], [-1, 0], [0, 0]]
+        movesMapping = [ tuple(move + np.array([1,1])) for move in np.array(moves) ]
+        def actLogitToArray(actLogit):
+            logit = actLogit.reshape(-1)
+            res = np.zeros(shape =(3,3), dtype = float)
+            for (x,y),action_i in zip(movesMapping,range(len(moves))):
+                res[x,y] = logit[action_i]
+
+            return res 
+        #import pdb;pdb.set_trace()    
+        for state,belief,observation,action,actLogit,step_path_i in zip(states[:-1],beliefs,observations[:-1],actions,actLogits,range(len(actions))):
+            obs = obsToArray(observation)
+            move = moves[action]
+            fig, ax = plt.subplots(ncols=3)
+            #import pdb;pdb.set_trace()
+            ax[0].imshow(belief.reshape(len(env),len(env)),cmap='OrRd',origin="lower")
+            #ax[0].annotate('state',xy=state,color='green')
+            ax[0].arrow(state[1],state[0],move[1],move[0],ec ='green',head_width = 0.2)
+            ax[0].set_xticks(np.arange(-.5, len(env), 1))
+            ax[0].set_yticks(np.arange(-.5, len(env), 1))
+            ax[0].set_xticklabels(np.arange(0, len(env), 1))
+            ax[0].set_yticklabels(np.arange(0, len(env), 1))
+            ax[0].set_title('belief,state,next action')
             
-        #for state,belief,observation,action,iPath in zip(states,beliefs,observations,actions,range(len(actions))):
+            ax[0].grid()
+            
+            ax[1].imshow(obs,'gray_r',origin="lower")
+            ax[1].set_xticks(np.arange(-.5, 3, 1))
+            ax[1].set_yticks(np.arange(-.5, 3, 1))
+            ax[1].set_xticklabels(np.arange(0, 3, 1))
+            ax[1].set_yticklabels(np.arange(0, 3, 1))
+            ax[1].set_title('current observation')
+            
+            ax[0].imshow(env.reshape(len(env),len(env)),cmap='gray_r',alpha=0.2, origin="lower")
+            ax[0].imshow(goal_img.reshape(len(env),len(env)),cmap='Purples',alpha=0.2,origin="lower")
+            
+            ax[2].imshow(actLogitToArray(actLogit),origin="lower",cmap='OrRd')
+            ax[2].set_xticks(np.arange(-.5, 3, 1))
+            ax[2].set_yticks(np.arange(-.5, 3, 1))
+            ax[2].set_xticklabels(np.arange(0, 3, 1))
+            ax[2].set_yticklabels(np.arange(0, 3, 1))
+            ax[2].set_title('action scores')
+            plt.savefig('maze partial solution with model10 on step'+str(step_path_i)+'.png',dpi=1000,fontsize='small')
+
+
+            #import pdb;pdb.set_trace()
         #        plt.imshow(obsToArray(observation), cmap='hot', interpolation='nearest')
         #        plt.savefig(str(env_i[0])+'obs currPathLength = '+str(iPath)) 
         #        import pdb;pdb.set_trace()
+        
+        fig, ax = plt.subplots()
+        ax.set_xticks(np.arange(-.5, len(env), 1))
+        ax.set_yticks(np.arange(-.5, len(env), 1))
+        ax.set_xticklabels(np.arange(0, len(env), 1))
+        ax.set_yticklabels(np.arange(0, len(env), 1))
+        ax.imshow(env.reshape(len(env),len(env)),cmap='gray_r', origin="lower")
+        ax.imshow(goal_img.reshape(len(env),len(env)),cmap='Purples',alpha=0.2,origin="lower")
 
-
-
+        for s1,s2 in zip(states[:-1],states[1:]):
+            move = np.array(s2)-np.array(s1)
+            #import pdb;pdb.set_trace()
+            state = s1
+            ax.arrow(state[1],state[0],move[1],move[0],ec ='green',head_width = 0.2)
+        plt.savefig('maze full solution with model10.png',dpi=1000)
         return results  # success, traj_len, collided, reward_sum
 
 

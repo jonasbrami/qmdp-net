@@ -217,10 +217,10 @@ class QMDPNetPolicy():
         feed_dict = {self.network.placeholders[i]: data[i] for i in range(len(self.network.placeholders)-2)}
 
         # evaluate QMDPNet
-        logits, _ = self.sess.run([self.network.logits, self.network.update_belief_op], feed_dict=feed_dict)
+        logits, updatedBelief = self.sess.run([self.network.logits, self.network.update_belief_op], feed_dict=feed_dict)
         act = np.argmax(logits.flatten())
-
-        return act,self.belief_img
+        
+        return act,updatedBelief,logits
 
 
 class PlannerNet():

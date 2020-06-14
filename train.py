@@ -174,7 +174,7 @@ def run_eval(params, modelfile):
         saver = tf.train.Saver(var_list=tf.trainable_variables())
 
         # Create a TF session
-        #os.environ["CUDA_VISIBLE_DEVICES"] = "" # use CPU
+        os.environ["CUDA_VISIBLE_DEVICES"] = "" # use CPU
         sess = tf.Session(config=tf.ConfigProto())
 
         # load model from file

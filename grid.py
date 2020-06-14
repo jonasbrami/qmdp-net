@@ -15,6 +15,7 @@ except Exception:
 
 FREESTATE = 0.0
 OBSTACLE = 1.0
+from PIL import Image
 
 
 class GridBase(object):
@@ -67,10 +68,10 @@ class GridBase(object):
         
         #added for plotting
         beliefs = []
-        states = []
+        states = [self.state_lin_to_bin(start_state)]
         actions = []
-        observations = []
-
+        observations = [qmdp.random_obs(start_state, 4)]
+        actLogits = []
 
         while True:
             # finish if state is terminal, i.e. we reached a goal state
@@ -87,8 +88,9 @@ class GridBase(object):
             if step_i == 0:
                 act = first_action
                 b = b0_img
+                actLogit = np.zeros(5)
             else:
-                act,b = policy.eval(act, self.obs_lin_to_bin(obs))
+                act,b, actLogit = policy.eval(act, self.obs_lin_to_bin(obs))
 
 
             # simulate action
@@ -104,14 +106,15 @@ class GridBase(object):
 
             #for graphs
             beliefs.append(b)
-            states.append(state)
+            states.append(self.state_lin_to_bin(state))
             actions.append(act)
+            actLogits.append(actLogit)
             observations.append(obs)
 
             step_i += 1
         traj_len = step_i
 
-        return (not failed), traj_len, collisions, reward_sum, beliefs, states, actions, observations
+        return (not failed), traj_len, collisions, reward_sum, beliefs, states, actions, observations, goal_img, actLogits
 
     def generate_trajectories(self, db, num_traj):
         params = self.params
@@ -120,7 +123,7 @@ class GridBase(object):
         for traj_i in range(num_traj):
             # generate a QMDP object, initial belief, initial state and goal state
             # also generates a random grid for the first iteration
-            qmdp, b0, start_state, goal_states = self.random_instance(generate_grid=(traj_i == 0))
+            qmdp, b0, start_state, goal_states = self.random_instance(generate_grid=(traj_i == 0),maze=True)
 
             qmdp.solve()
 
@@ -203,7 +206,7 @@ class GridBase(object):
         # add environment only after adding all trajectories
         db.root.envs.append(self.grid[None])
 
-    def random_instance(self, generate_grid=True):
+    def random_instance(self, generate_grid=True, maze= False):
         """
         Generate a random problem instance for a grid.
         Picks a random initial belief, initial state and goal states.
@@ -213,7 +216,7 @@ class GridBase(object):
         while True:
 
             if generate_grid:
-                self.grid = self.random_grid(self.params.grid_n, self.params.grid_m, self.params.Pobst)
+                self.grid = self.random_grid(self.params.grid_n, self.params.grid_m, self.params.Pobst, maze=maze)
                 self.gen_pomdp()  # generates pomdp model, self.T, self.Z, self.R
 
             while True:
@@ -406,7 +409,7 @@ class GridBase(object):
         return (not GridBase.outofbounds(self.grid, coord) and self.grid[coord[0], coord[1]] != OBSTACLE)
 
     @staticmethod
-    def random_grid(N, M, Pobst):
+    def random_grid(N, M, Pobst,maze=False):
         grid = np.zeros([N, M])
 
         # borders
@@ -414,9 +417,15 @@ class GridBase(object):
         grid[-1, :] = OBSTACLE
         grid[:, 0] = OBSTACLE
         grid[:, -1] = OBSTACLE
+        if maze:
+            im = Image.open('maze10.png').convert('L')
+            pic = np.array(im.resize((N-2,M-2),Image.BOX))
+            binPic = np.where(pic>200, 1, 0)
+            grid[1:N-1,1:M-1]=binPic
 
-        rand_field = np.random.rand(N, M)
-        grid = np.array(np.logical_or(grid, (rand_field < Pobst)), 'i')
+        else:
+            rand_field = np.random.rand(N, M)
+            grid = np.array(np.logical_or(grid, (rand_field < Pobst)), 'i')
         return grid
 
     def obs_lin_to_bin(self, obs_lin):
