@@ -127,7 +127,6 @@ class GridBase(object):
 
             qmdp.solve()
 
-            
             state = start_state
             b = b0.copy()  # linear belief
             reward_sum = 0.0  # accumulated reward
@@ -418,9 +417,9 @@ class GridBase(object):
         grid[:, 0] = OBSTACLE
         grid[:, -1] = OBSTACLE
         if maze:
-            im = Image.open('maze10.png').convert('L')
+            im = Image.open('mazeintel.png').convert('L')
             pic = np.array(im.resize((N-2,M-2),Image.BOX))
-            binPic = np.where(pic>200, 1, 0)
+            binPic = np.where(pic>230, 1, 0)
             grid[1:N-1,1:M-1]=binPic
 
         else:

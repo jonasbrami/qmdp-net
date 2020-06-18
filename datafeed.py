@@ -348,7 +348,7 @@ class EvalDataFeed(dataflow.ProxyDataFlow):
             plt.savefig('maze partial solution with model10 on step'+str(step_path_i)+'.png',dpi=1000,fontsize='small')
 
 
-            #import pdb;pdb.set_trace()
+            import pdb;pdb.set_trace()
         #        plt.imshow(obsToArray(observation), cmap='hot', interpolation='nearest')
         #        plt.savefig(str(env_i[0])+'obs currPathLength = '+str(iPath)) 
         #        import pdb;pdb.set_trace()
