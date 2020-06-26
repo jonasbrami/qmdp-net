@@ -16,7 +16,7 @@ def parse_args(arglist):
                         help='Load model weights from checkpoint')
 
     parser.add_argument('--eval_samples', type=int,
-                    default=100,
+                    default=10,
                     help='Number of samples to evaluate the learned policy on')
     parser.add_argument('--eval_repeats', type=int,
                     default=1,
@@ -55,7 +55,7 @@ def parse_args(arglist):
     parser.add_argument('-K', '--K', type=int,
                         default=-1,
                         help='Number of iterations of value iteration in QMDPNet. Compute from grid size if negative.')
-
+    #import pdb;pdb.set_trace()
     args = parser.parse_args(args=arglist)
 
     # load domain parameters

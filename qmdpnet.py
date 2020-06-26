@@ -94,12 +94,15 @@ class QMDPNet:
 
         # pre-compute context, fixed through time
         with tf.variable_scope("planner"):
-            Q, _, _ = PlannerNet.VI(map, goal, self.params)
+            Q, V, R = PlannerNet.VI(map, goal, self.params)
+            self.Q = Q
+            self.V = V
+            self.R = R
         with tf.variable_scope("filter"):
             Z = FilterNet.f_Z(map, self.params)
 
         self.context_tensors = [Q, Z]
-
+    
         # create variable for hidden belief (equivalent to the hidden state of an RNN)
         self.belief = tf.Variable(np.zeros(b0.get_shape().as_list(), 'f'), trainable=False, name="hidden_belief")
 
@@ -122,6 +125,9 @@ class QMDPNet:
 
         # create op that updates the belief
         self.update_belief_op = self.belief.assign(b)
+
+        #create op that stores the values of Q,V,R
+        
 
         # compute loss (cross-entropy)
         logits = tf.stack(values=outputs, axis=0)  # shape is [step_size, batch_size, num_action]
@@ -221,6 +227,15 @@ class QMDPNetPolicy():
         act = np.argmax(logits.flatten())
         
         return act,updatedBelief,logits
+    
+    def getTrainedModel( self ):
+        # input data. do not neet weight and label for prediction
+        data = [self.env_img, self.goal_img, self.belief_img]
+        feed_dict = {self.network.placeholders[i]: data[i] for i in range(3)}
+
+        Q,V,R = self.sess.run([self.network.Q,self.network.V,self.network.R], feed_dict = feed_dict ) 
+        #import pdb;pdb.set_trace()
+        return Q,V,R
 
 
 class PlannerNet():
@@ -228,6 +243,7 @@ class PlannerNet():
     def f_R(map, goal, num_action):
         theta = tf.stack([map, goal], axis=3)
         R = conv_layers(theta, np.array([[3, 150, 'relu'], [1, num_action, 'lin']]), "R_conv")
+        #R = conv_layers(theta, np.array([[2, 75, 'leakyRelu'], [4, 75, 'leakyRelu'], [1, num_action, 'lin']]), "R_conv")
         return R
 
     @staticmethod
@@ -474,6 +490,9 @@ def activation(tensor, activation_name):
         tensor = tf.nn.sigmoid(tensor)
     elif activation_name in ['sm', 'smax']:
         tensor = tf.nn.softmax(tensor, axis=-1)
+    elif activation_name in ['leakyRelu']:
+        tensor = tf.nn.leaky_relu(tensor)
+
     else:
         raise NotImplementedError
 

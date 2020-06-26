@@ -8,7 +8,7 @@ try:
     import ipdb as pdb
 except Exception:
     import pdb
-
+#from printutils import print_grid
 
 class Datafeed():
     def __init__(self, params, filename, mode="train", min_env=0, max_env=0):
@@ -257,7 +257,10 @@ class EvalDataFeed(dataflow.ProxyDataFlow):
         self.db = None
 
     def get_data(self):
+        i=0
         for dp in self.ds.get_data():
+            i+=1
+            print(i)
             yield self.eval_sample(dp)
 
     def eval_sample(self, sample):
@@ -286,7 +289,6 @@ class EvalDataFeed(dataflow.ProxyDataFlow):
         # First row for expert, second row for evaluated policy.
         results = np.zeros([self.repeats+1, 4], 'f')
         results[0] = np.array([success, traj_len, collided, reward_sum], 'f')
-
         for eval_i in range(self.repeats):
             success, traj_len, collisions, reward_sum, beliefs, states, actions, observations,goal_img,actLogits = self.domain.simulate_policy(
                 self.policy, grid=env, b0=b0, start_state=state, goal_states=goal_states, first_action=act_last)
@@ -312,7 +314,8 @@ class EvalDataFeed(dataflow.ProxyDataFlow):
                 res[x,y] = logit[action_i]
 
             return res 
-        #import pdb;pdb.set_trace()    
+        #import pdb;pdb.set_trace()
+        '''
         for state,belief,observation,action,actLogit,step_path_i in zip(states[:-1],beliefs,observations[:-1],actions,actLogits,range(len(actions))):
             obs = obsToArray(observation)
             move = moves[action]
@@ -346,9 +349,9 @@ class EvalDataFeed(dataflow.ProxyDataFlow):
             ax[2].set_yticklabels(np.arange(0, 3, 1))
             ax[2].set_title('action scores')
             plt.savefig('maze partial solution with model10 on step'+str(step_path_i)+'.png',dpi=1000,fontsize='small')
+            
 
-
-            import pdb;pdb.set_trace()
+            #import pdb;pdb.set_trace()
         #        plt.imshow(obsToArray(observation), cmap='hot', interpolation='nearest')
         #        plt.savefig(str(env_i[0])+'obs currPathLength = '+str(iPath)) 
         #        import pdb;pdb.set_trace()
@@ -366,7 +369,7 @@ class EvalDataFeed(dataflow.ProxyDataFlow):
             #import pdb;pdb.set_trace()
             state = s1
             ax.arrow(state[1],state[0],move[1],move[0],ec ='green',head_width = 0.2)
-        plt.savefig('maze full solution with model10.png',dpi=1000)
+        plt.show()'''
         return results  # success, traj_len, collided, reward_sum
 
 

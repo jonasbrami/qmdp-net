@@ -6,17 +6,20 @@ import tables
 from utils import dijkstra
 from utils.dotdict import dotdict
 from utils.qmdp import QMDP
-
+from datetime import datetime
 try:
     import ipdb as pdb
 except Exception:
     import pdb
-
-
+import os.path
+import os
+count = 0
 FREESTATE = 0.0
 OBSTACLE = 1.0
 from PIL import Image
-
+from printutils import printMoveAndBeliefOnEnv,initIm, print_grid
+import matplotlib.pyplot as plt
+import matplotlib.animation as animation
 
 class GridBase(object):
     def __init__(self, params):
@@ -72,15 +75,38 @@ class GridBase(object):
         actions = []
         observations = [qmdp.random_obs(start_state, 4)]
         actLogits = []
-
+        global count
+        dirname = params.path + params.loadmodel[0][2:-1].replace('/','-') + '/'
+        try:
+            os.mkdir(dirname)
+        except OSError:
+            pass
+        dirname += str(count) + '/'
+        try:
+            os.mkdir(dirname)
+        except OSError as e:
+            pass
+        Q,V,R = policy.getTrainedModel()
+        V = np.array(V)
+        q = np.sum(Q,axis=3)
+        r = np.sum(R,axis=3)
+        print('goal',self.state_lin_to_bin(goal_states[0]))
+        
+        # print_grid(env_img[0],len(env_img[0]))
+        print_grid(V,len(env_img[0]),cmap='RdYlGn', filename= ( dirname +'V-goal' + str(self.state_lin_to_bin(goal_states[0])) + '.png' ))
+        print_grid(q,len(env_img[0]),cmap='RdYlGn', filename= ( dirname +'q-goal' + str(self.state_lin_to_bin(goal_states[0])) + '.png'))
+        print_grid(r,len(env_img[0]),cmap='RdYlGn', filename= ( dirname +'R-goal' + str(self.state_lin_to_bin(goal_states[0])) + '.png'))
         while True:
+            
+            print('state',self.state_lin_to_bin(state))
+            
             # finish if state is terminal, i.e. we reached a goal state
             if all([np.isclose(qmdp.T[x][state, state], 1.0) for x in range(params.num_action)]):
                 assert state in goal_states
                 break
 
             # stop if trajectory limit reached
-            if step_i >= max_traj_len:  # it should reach terminal state sooner or later
+            if step_i >= 100:  # it should reach terminal state sooner or later
                 failed = True
                 break
 
@@ -96,9 +122,9 @@ class GridBase(object):
             # simulate action
             state, r = qmdp.transition(state, act)
             obs = qmdp.random_obs(state, act)
-
             reward_sum += r * gamma_acc
             gamma_acc = gamma_acc * qmdp.discount
+
 
             # count collisions
             if np.isclose(r, params.R_obst):
@@ -111,12 +137,26 @@ class GridBase(object):
             actLogits.append(actLogit)
             observations.append(obs)
 
+            if step_i > 0:
+                env = env_img[0]
+                if(step_i == 1):
+                    ims = []
+                    fig = plt.figure()
+                    initIm(len(env),env,goal_img)
+                
+                im = printMoveAndBeliefOnEnv(env,b,goal_img,self.state_lin_to_bin(old_state),act)
+                #import pdb;pdb.set_trace()
+                ims.append(im)
+
+            old_state = state
             step_i += 1
         traj_len = step_i
-
+        ani = animation.ArtistAnimation(fig, ims, interval=150, blit=True,repeat_delay=1000)
+        ani.save( dirname + 'animation' + '.mp4')
+        count = count + 1
         return (not failed), traj_len, collisions, reward_sum, beliefs, states, actions, observations, goal_img, actLogits
 
-    def generate_trajectories(self, db, num_traj):
+    def generate_trajectories(self, db, num_traj,path=None):
         params = self.params
         max_traj_len = params.traj_limit
 
@@ -140,7 +180,32 @@ class GridBase(object):
             collisions = 0
             failed = False
             step_i = 0
-
+            N = self.params.grid_n
+            Q,V = (qmdp.Q,qmdp.V)
+            V = np.array(V).reshape((N,N))
+            Q = Q.reshape((N,N,5))
+            q = np.sum(Q,axis=2)
+            goal_img = self.process_goals(np.array(goal_states))
+            global count
+            print('goal',self.state_lin_to_bin(goal_states[0]))
+            
+            # print_grid(env_img[0],len(env_img[0]))
+            dirname = path + 'expert/'
+            try:
+                os.mkdir(dirname)
+            except OSError:
+                pass
+            dirname += str(count) + '/'
+            try:
+                os.mkdir(dirname)
+            except OSError:
+                pass
+            V[V<0]=0
+            q[q<0]=0
+            print_grid(V,N,cmap='RdYlGn', filename= ( dirname +'V-goal' + str(self.state_lin_to_bin(goal_states[0])) + '.png' ))
+            print_grid(q,N,cmap='RdYlGn', filename= ( dirname +'q-goal' + str(self.state_lin_to_bin(goal_states[0])) + '.png'))
+            #print_grid(V,N,cmap='RdYlGn')
+            #print_grid(q,N,cmap='RdYlGn')
             while True:
                 beliefs.append(b)
                 states.append(state)
@@ -164,6 +229,7 @@ class GridBase(object):
                     act = qmdp.qmdp_action(b)
 
                 # simulate action
+                old_state = state
                 state, r = qmdp.transition(state, act)
                 bprime, obs, b = qmdp.belief_update(b, act, state_after_transition=state)
 
@@ -178,8 +244,19 @@ class GridBase(object):
                     collisions += 1
 
                 step_i += 1
+                env = self.grid
+                if step_i == 1:
+                    ims = []
+                    fig = plt.figure()
+                    initIm(len(env),env,goal_img)
+                im = printMoveAndBeliefOnEnv(env,b.todense(),goal_img,self.state_lin_to_bin(old_state),act)
                 #import pdb;pdb.set_trace()
+                ims.append(im)
 
+            
+            ani = animation.ArtistAnimation(fig, ims, interval=150, blit=True,repeat_delay=1000)
+            ani.save( dirname + 'animation' + '.mp4')
+            count = count + 1
             # add to database
             if not failed:
                 db.root.valids.append([len(db.root.samples)])
@@ -201,7 +278,7 @@ class GridBase(object):
             db.root.steps.append(step)
             for belief in beliefs[1:]:
                 db.root.qmdpBeliefs.append(belief.todense())
-            #import pdb;pdb.set_trace()
+            
         # add environment only after adding all trajectories
         db.root.envs.append(self.grid[None])
 
@@ -216,6 +293,7 @@ class GridBase(object):
 
             if generate_grid:
                 self.grid = self.random_grid(self.params.grid_n, self.params.grid_m, self.params.Pobst, maze=maze)
+                #print_grid(self.grid,self.params.grid_n)
                 self.gen_pomdp()  # generates pomdp model, self.T, self.Z, self.R
 
             while True:
@@ -417,10 +495,11 @@ class GridBase(object):
         grid[:, 0] = OBSTACLE
         grid[:, -1] = OBSTACLE
         if maze:
-            im = Image.open('mazeintel.png').convert('L')
+            im = Image.open('maze100.png').convert('L')
             pic = np.array(im.resize((N-2,M-2),Image.BOX))
-            binPic = np.where(pic>230, 1, 0)
+            binPic = np.where(pic>150, 0, 1)
             grid[1:N-1,1:M-1]=binPic
+            #print_grid(grid,N)
 
         else:
             rand_field = np.random.rand(N, M)
@@ -559,8 +638,8 @@ def generate_grid_data(path, N=30, M=30, num_env=10000, traj_per_env=5, Pmove_su
 
     for env_i in range(num_env):
         print ("Generating env %d with %d trajectories "%(env_i, traj_per_env))
-        domain.generate_trajectories(db, num_traj=traj_per_env)
-
+        domain.generate_trajectories(db, num_traj=traj_per_env,path=path)
+    
     print ("Done.")
 
 
@@ -593,7 +672,6 @@ def main():
          help='Probability of successful observation (independently for each direction), 1.0 by default')
 
     args = parser.parse_args()
-
     if os.path.isdir(args.path):
         answer = input("%s exists. Do you want to remove it(y/n)?" % args.path)
         if answer != 'y':
@@ -605,9 +683,8 @@ def main():
     # training data
     generate_grid_data(args.path + '/train/', N=args.N, M=args.N, num_env=args.train, traj_per_env=args.train_trajs,
                        Pmove_succ=args.Pmove_succ, Pobs_succ=args.Pobs_succ)
-
     # test data
-    generate_grid_data(args.path + '/test/', N=args.N, M=args.N, num_env=args.test, traj_per_env=args.test_trajs,
+    generate_grid_data(args.path + 'test/', N=args.N, M=args.N, num_env=args.test, traj_per_env=args.test_trajs,
                        Pmove_succ=args.Pmove_succ, Pobs_succ=args.Pobs_succ)
 
 
